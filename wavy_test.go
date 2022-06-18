@@ -3,13 +3,10 @@ package wavy_test
 import (
 	"io"
 	"math"
-	"os"
-	"runtime"
 	"testing"
 	"time"
 
-	"github.com/hajimehoshi/go-mp3"
-	"github.com/hajimehoshi/oto/v2"
+	"github.com/bloeys/wavy"
 )
 
 const (
@@ -101,55 +98,35 @@ func NewSineWave(freq float64, duration time.Duration) *SineWave {
 	}
 }
 
-func TestWavy(t *testing.T) {
-
-	const freqToUse = 523.3
-
-	c, ready, err := oto.NewContext(44100, 2, 2)
-	if err != nil {
-		t.Errorf("Failed to create oto context. Err: %e\n", err)
-		return
-	}
-	<-ready
-
-	playDuration := 1 * time.Second
-	player := c.NewPlayer(NewSineWave(freqToUse, playDuration))
-	player.SetVolume(0.75)
-	player.Play()
-
-	time.Sleep(playDuration)
-	runtime.KeepAlive(player)
-}
-
-func TestMP3(t *testing.T) {
+func TestSound(t *testing.T) {
 
 	audioFPath := "./test_audio_files/Fatiha.mp3"
-	f, err := os.Open(audioFPath)
-	if err != nil {
-		t.Errorf("Failed to open '%s'. Err: %s\n", audioFPath, err)
-		return
-	}
-	defer f.Close()
 
-	dec, err := mp3.NewDecoder(f)
+	//Streaming
+	s, err := wavy.NewSoundStreaming(audioFPath, wavy.SampleRate_44100, wavy.SoundChannelCount_2, wavy.SoundBitDepth_2)
 	if err != nil {
-		t.Errorf("Failed to decode mp3 file. Err: %s\n", err)
+		t.Errorf("Failed to load new sound with path '%s'. Err: %s\n", audioFPath, err)
 		return
 	}
 
-	c, ready, err := oto.NewContext(dec.SampleRate(), 2, 2)
-	if err != nil {
-		t.Errorf("Failed to create oto context. Err: %s\n", err)
-		return
-	}
-	<-ready
-
-	player := c.NewPlayer(dec)
-	player.SetVolume(0.75)
-	player.Play()
-
+	s.PlayAsync()
 	time.Sleep(1 * time.Second)
+	if err := s.Close(); err != nil {
+		t.Errorf("Closing streaming sound failed. Err: %s\n", err)
+		return
+	}
 
-	//This is to ensure GC doesn't collect player/context. Without it no sound might play, or plays for very small amount of time.
-	runtime.KeepAlive(player)
+	//In-Memory
+	s, err = wavy.NewSoundMem(audioFPath, wavy.SampleRate_44100, wavy.SoundChannelCount_2, wavy.SoundBitDepth_2)
+	if err != nil {
+		t.Errorf("Failed to load new sound with path '%s'. Err: %s\n", audioFPath, err)
+		return
+	}
+
+	s.PlayAsync()
+	time.Sleep(1 * time.Second)
+	if err := s.Close(); err != nil {
+		t.Errorf("Closing in-memory sound failed. Err: %s\n", err)
+		return
+	}
 }
