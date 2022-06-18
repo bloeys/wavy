@@ -112,11 +112,7 @@ func (s *Sound) RemainingTime() time.Duration {
 	}
 
 	var currBytePos int64
-	if s.Info.Mode == SoundMode_Streaming {
-		currBytePos, _ = s.Bytes.Seek(0, io.SeekCurrent)
-	} else {
-		currBytePos, _ = s.Bytes.Seek(0, io.SeekCurrent)
-	}
+	currBytePos, _ = s.Bytes.Seek(0, io.SeekCurrent)
 
 	lenInMS := float64(s.Info.Size-currBytePos) / float64(s.Info.SamplingRate) / 4 * 1000
 	return time.Duration(lenInMS) * time.Millisecond
