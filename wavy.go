@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -40,20 +41,44 @@ const (
 	SoundBitDepth_2 SoundBitDepth = 2
 )
 
+type SoundMode int
+
+const (
+	SoundMode_Streaming SoundMode = iota
+	SoundMode_Memory
+)
+
 var (
 	ErrunknownSoundType = errors.New("unknown sound type. Sound file extensions must be: .mp3")
 )
 
+//SoundInfo contains static info about a loaded sound file
+type SoundInfo struct {
+	Type SoundType
+	Mode SoundMode
+
+	SamplingRate SampleRate
+	ChanCount    SoundChannelCount
+	BitDepth     SoundBitDepth
+
+	//Size is the sound's size in bytes
+	Size int64
+}
+
 type Sound struct {
+	//Becomes nil after close
 	Ctx    *oto.Context
 	Player oto.Player
-	Type   SoundType
 
-	//FileDesc is the file descriptor of the sound file being streamed. This is only set if NewSoundStreaming is used
+	//FileDesc is the file descriptor of the sound file being streamed.
+	//This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
 	FileDesc *os.File
 
-	//BytesReader is a reader from a buffer containing the entire sound file
-	BytesReader *bytes.Reader
+	//Bytes is an io.ReadSeeker over an open file or over a buffer containing the uncompressed sound file.
+	//Becomes nil after close
+	Bytes io.ReadSeeker
+
+	Info SoundInfo
 }
 
 func (s *Sound) PlayAsync() {
@@ -63,19 +88,61 @@ func (s *Sound) PlayAsync() {
 func (s *Sound) PlaySync() {
 
 	s.Player.Play()
+	time.Sleep(s.TotalTime())
+
+	//Should never run, but just in case TotalTimeMS was a bit inaccurate
 	for s.Player.IsPlaying() {
-		time.Sleep(100 * time.Millisecond)
 	}
 }
 
+//TotalTime returns the time taken to play the entire sound.
+//Safe to use after close
+func (s *Sound) TotalTime() time.Duration {
+	//Number of bytes divided by sampling rate (which is bytes consumed per second), then divide by 4 because each sample is 4 bytes in go-mp3
+	lenInMS := float64(s.Info.Size) / float64(s.Info.SamplingRate) / 4 * 1000
+	return time.Duration(lenInMS) * time.Millisecond
+}
+
+//RemainingTime returns the time left in the clip, which is affected by pausing/resetting/seeking of the sound.
+//Returns zero after close
+func (s *Sound) RemainingTime() time.Duration {
+
+	if s.IsClosed() {
+		return 0
+	}
+
+	var currBytePos int64
+	if s.Info.Mode == SoundMode_Streaming {
+		currBytePos, _ = s.Bytes.Seek(0, io.SeekCurrent)
+	} else {
+		currBytePos, _ = s.Bytes.Seek(0, io.SeekCurrent)
+	}
+
+	lenInMS := float64(s.Info.Size-currBytePos) / float64(s.Info.SamplingRate) / 4 * 1000
+	return time.Duration(lenInMS) * time.Millisecond
+}
+
+func (s *Sound) IsClosed() bool {
+	return s.Ctx == nil
+}
+
+//Close will clean underlying resources, and the 'Ctx' and 'Bytes' fields will be made nil.
+//Repeated calls are no-ops
 func (s *Sound) Close() error {
+
+	if s.IsClosed() {
+		return nil
+	}
 
 	var fdErr error = nil
 	if s.FileDesc != nil {
 		fdErr = s.FileDesc.Close()
 	}
 
+	s.Ctx = nil
+	s.Bytes = nil
 	playerErr := s.Player.Close()
+
 	if playerErr == nil && fdErr == nil {
 		return nil
 	}
@@ -117,8 +184,20 @@ func NewSoundStreaming(fpath string, sr SampleRate, chanCount SoundChannelCount,
 		return nil, err
 	}
 
+	s = &Sound{
+		Ctx:      otoCtx,
+		FileDesc: file,
+		Info: SoundInfo{
+			Type: soundType,
+			Mode: SoundMode_Streaming,
+
+			SamplingRate: sr,
+			ChanCount:    chanCount,
+			BitDepth:     bitDepth,
+		},
+	}
+
 	//Load file depending on type
-	s = &Sound{Ctx: otoCtx, Type: soundType, FileDesc: file}
 	if soundType == SoundType_MP3 {
 
 		dec, err := mp3.NewDecoder(file)
@@ -126,7 +205,9 @@ func NewSoundStreaming(fpath string, sr SampleRate, chanCount SoundChannelCount,
 			return nil, err
 		}
 
+		s.Info.Size = dec.Length()
 		s.Player = otoCtx.NewPlayer(dec)
+		s.Bytes = dec
 	}
 
 	return s, nil
@@ -156,10 +237,21 @@ func NewSoundMem(fpath string, sr SampleRate, chanCount SoundChannelCount, bitDe
 	if err != nil {
 		return nil, err
 	}
+
 	bytesReader := bytes.NewReader(fileBytes)
+	s = &Sound{
+		Ctx: otoCtx,
+		Info: SoundInfo{
+			Type: soundType,
+			Mode: SoundMode_Memory,
+
+			SamplingRate: sr,
+			ChanCount:    chanCount,
+			BitDepth:     bitDepth,
+		},
+	}
 
 	//Load file depending on type
-	s = &Sound{Ctx: otoCtx, Type: soundType, BytesReader: bytesReader}
 	if soundType == SoundType_MP3 {
 
 		dec, err := mp3.NewDecoder(bytesReader)
@@ -167,6 +259,8 @@ func NewSoundMem(fpath string, sr SampleRate, chanCount SoundChannelCount, bitDe
 			return nil, err
 		}
 
+		s.Bytes = dec
+		s.Info.Size = dec.Length()
 		s.Player = otoCtx.NewPlayer(dec)
 	}
 
