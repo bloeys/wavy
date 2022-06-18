@@ -81,15 +81,19 @@ type Sound struct {
 	Info SoundInfo
 }
 
+//PlayAsync plays the sound in the background and returns
 func (s *Sound) PlayAsync() {
 	s.Player.Play()
 }
 
+//PlaySync plays the sound (if its not already playing) and waits for it to finish before returning.
 func (s *Sound) PlaySync() {
 
-	s.Player.Play()
-	time.Sleep(s.TotalTime())
+	if !s.Player.IsPlaying() {
+		s.Player.Play()
+	}
 
+	time.Sleep(s.RemainingTime())
 	//Should never run, but just in case TotalTimeMS was a bit inaccurate
 	for s.Player.IsPlaying() {
 	}
