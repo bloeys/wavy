@@ -101,6 +101,7 @@ func NewSineWave(freq float64, duration time.Duration) *SineWave {
 func TestSound(t *testing.T) {
 
 	fatihaFilepath := "./test_audio_files/Fatiha.mp3"
+	tadaFilepath := "./test_audio_files/tada.mp3"
 	const fatihaLenMS = 55484
 
 	//Streaming
@@ -156,4 +157,12 @@ func TestSound(t *testing.T) {
 		t.Errorf("Expected time to be %dms but got %dms in memory sound\n", fatihaLenMS, totalTime.Milliseconds())
 		return
 	}
+
+	//Memory 'tada.mp3'
+	s, err = wavy.NewSoundMem(tadaFilepath, wavy.SampleRate_44100, wavy.SoundChannelCount_2, wavy.SoundBitDepth_2)
+	if err != nil {
+		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", tadaFilepath, err)
+		return
+	}
+
 }
