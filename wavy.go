@@ -78,7 +78,9 @@ func Init(sr SampleRate, chanCount SoundChannelCount, bitDepth SoundBitDepth) er
 
 //Wait blocks until sound finishes playing. If the sound is not playing Wait returns immediately.
 //In the worst case (Wait sleeping then sound immediately paused), Wait will block ~4% of the total play time.
-//In most other cases Wait should be accurate to ~1ms
+//In most other cases Wait should be accurate to ~1ms.
+//
+//If you want to wait for all loops to finish then use WaitLoop
 func (s *Sound) Wait() {
 
 	if !s.IsPlaying() {
@@ -94,6 +96,14 @@ func (s *Sound) Wait() {
 	//If there is anything left it should be tiny so we check frequently
 	for s.Player.IsPlaying() {
 		time.Sleep(time.Millisecond)
+	}
+}
+
+//WaitLoop waits until the sound is no longer looping
+func (s *Sound) WaitLoop() {
+
+	for s.IsLooping {
+		s.Wait()
 	}
 }
 
@@ -120,10 +130,16 @@ func (s *Sound) LoopAsync(timesToPlay int) {
 
 	if s.IsPlaying() {
 		s.Pause()
-		s.Wait()
+
+		if s.IsLooping {
+			s.WaitLoop()
+		} else {
+			s.Wait()
+		}
 	}
 
 	s.PlayAsync()
+	timesToPlay--
 	s.IsLooping = true
 	go func() {
 
@@ -158,6 +174,8 @@ func (s *Sound) LoopAsync(timesToPlay int) {
 				s.PlayAsync()
 			}
 		}
+
+		s.IsLooping = false
 	}()
 }
 
@@ -218,12 +236,7 @@ func (s *Sound) SeekToPercent(percent float64) {
 		s.Player.Reset()
 	}
 
-	if percent < 0 {
-		percent = 0
-	} else if percent > 1 {
-		percent = 1
-	}
-
+	percent = clamp01F64(percent)
 	s.Data.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
 }
 
@@ -280,17 +293,51 @@ func (s *Sound) Close() error {
 
 //CopyInMemSound returns a new sound object that has identitcal info and uses the same underlying data, but with independent play controls (e.g. one playing at the start while one is in the middle).
 //Since the sound data is not copied this function is very fast.
+//
+//Panics if the sound is not in-memory
 func CopyInMemSound(s *Sound) *Sound {
 
 	if s.Info.Mode != SoundMode_Memory {
 		panic("only in-memory sounds can be copied. Please use NewSoundStreaming if you want to have multiple sound objects of a streaming sound")
 	}
 
-	d := s.Data.(*SoundBuffer).Copy()
+	sb := s.Data.(*SoundBuffer).Copy()
+
+	p := Ctx.NewPlayer(sb)
+	p.SetVolume(s.Volume())
+
 	return &Sound{
-		Player: Ctx.NewPlayer(d),
+		Player: p,
 		File:   nil,
-		Data:   d,
+		Data:   sb,
+		Info:   s.Info,
+	}
+}
+
+//ClipInMemSoundPercent is like CopyInMemSound but produces a sound that plays only between from and to.
+//fromPercent and toPercent must be between 0 and 1
+func ClipInMemSoundPercent(s *Sound, fromPercent, toPercent float64) *Sound {
+
+	if s.Info.Mode != SoundMode_Memory {
+		panic("only in-memory sounds can be used in ClipInMemSoundPercent")
+	}
+
+	fromPercent = clamp01F64(fromPercent)
+	toPercent = clamp01F64(toPercent)
+
+	sb := s.Data.(*SoundBuffer).Copy()
+
+	start := int64(float64(len(sb.Data)) * fromPercent)
+	end := int64(float64(len(sb.Data)) * toPercent)
+	sb.Data = sb.Data[start:end]
+
+	p := Ctx.NewPlayer(sb)
+	p.SetVolume(s.Volume())
+
+	return &Sound{
+		Player: p,
+		File:   nil,
+		Data:   sb,
 		Info:   s.Info,
 	}
 }
@@ -449,4 +496,18 @@ func PlayTimeFromByteCount(byteCount int64) time.Duration {
 //PlayTimeFromByteCount returns how many bytes are needed to produce a sound that takes t time to play
 func ByteCountFromPlayTime(t time.Duration) int64 {
 	return t.Milliseconds() * BytesPerSecond / 1000
+}
+
+//clampF64 [min,max]
+func clamp01F64(x float64) float64 {
+
+	if x < 0 {
+		return 0
+	}
+
+	if x > 1 {
+		return 1
+	}
+
+	return x
 }

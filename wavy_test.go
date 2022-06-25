@@ -99,6 +99,10 @@ func TestSound(t *testing.T) {
 
 	s2.SeekToTime(400 * time.Millisecond)
 	s2.PlaySync()
+
+	s3 := wavy.ClipInMemSoundPercent(s2, 0, 0.25)
+	s3.LoopAsync(3)
+	s3.WaitLoop()
 }
 
 func TestByteCountFromPlayTime(t *testing.T) {
