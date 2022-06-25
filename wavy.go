@@ -14,49 +14,40 @@ import (
 	"github.com/hajimehoshi/oto/v2"
 )
 
-type SoundType int
+//SoundInfo contains static info about a loaded sound file
+type SoundInfo struct {
+	Type SoundType
+	Mode SoundMode
 
-const (
-	SoundType_Unknown SoundType = iota
-	SoundType_MP3
-)
+	//Size is the sound's size in bytes
+	Size int64
+}
 
-type SampleRate int
+type Sound struct {
+	Player oto.Player
 
-const (
-	SampleRate_44100 SampleRate = 44100
-	SampleRate_48000 SampleRate = 48000
-)
+	//FileDesc is the file descriptor of the sound file being streamed.
+	//This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
+	FileDesc *os.File
 
-type SoundChannelCount int
+	//Data is an io.ReadSeeker over an open file or over a buffer containing the uncompressed sound file.
+	//Becomes nil after close
+	Data io.ReadSeeker
 
-const (
-	SoundChannelCount_1 SoundChannelCount = 1
-	SoundChannelCount_2 SoundChannelCount = 2
-)
+	Info SoundInfo
+}
 
-type SoundBitDepth int
-
-const (
-	SoundBitDepth_1 SoundBitDepth = 1
-	SoundBitDepth_2 SoundBitDepth = 2
-)
-
-type SoundMode int
-
-const (
-	SoundMode_Streaming SoundMode = iota
-	SoundMode_Memory
-)
-
+//Those values are set after Init
 var (
 	Ctx          *oto.Context
 	SamplingRate SampleRate
 	ChanCount    SoundChannelCount
 	BitDepth     SoundBitDepth
+)
 
-	//Pre-defined errors
-	ErrunknownSoundType = errors.New("unknown sound type. Sound file extensions must be: .mp3")
+//Pre-defined errors
+var (
+	ErrunknownSoundType = errors.New("unknown sound type. Sound file extension must be one of: .mp3")
 )
 
 //Init prepares the default audio device and does any required setup.
@@ -75,29 +66,6 @@ func Init(sr SampleRate, chanCount SoundChannelCount, bitDepth SoundBitDepth) er
 	BitDepth = bitDepth
 
 	return nil
-}
-
-//SoundInfo contains static info about a loaded sound file
-type SoundInfo struct {
-	Type SoundType
-	Mode SoundMode
-
-	//Size is the sound's size in bytes
-	Size int64
-}
-
-type Sound struct {
-	Player oto.Player
-
-	//FileDesc is the file descriptor of the sound file being streamed.
-	//This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
-	FileDesc *os.File
-
-	//Bytes is an io.ReadSeeker over an open file or over a buffer containing the uncompressed sound file.
-	//Becomes nil after close
-	Bytes io.ReadSeeker
-
-	Info SoundInfo
 }
 
 //PlayAsync plays the sound in the background and returns
@@ -135,7 +103,7 @@ func (s *Sound) RemainingTime() time.Duration {
 	}
 
 	var currBytePos int64
-	currBytePos, _ = s.Bytes.Seek(0, io.SeekCurrent)
+	currBytePos, _ = s.Data.Seek(0, io.SeekCurrent)
 	currBytePos -= int64(s.Player.UnplayedBufferSize())
 
 	lenInMS := float64(s.Info.Size-currBytePos) / float64(SamplingRate) / 4 * 1000
@@ -143,7 +111,7 @@ func (s *Sound) RemainingTime() time.Duration {
 }
 
 func (s *Sound) IsClosed() bool {
-	return s.Bytes == nil
+	return s.Data == nil
 }
 
 //Close will clean underlying resources, and the 'Ctx' and 'Bytes' fields will be made nil.
@@ -159,7 +127,7 @@ func (s *Sound) Close() error {
 		fdErr = s.FileDesc.Close()
 	}
 
-	s.Bytes = nil
+	s.Data = nil
 	playerErr := s.Player.Close()
 
 	if playerErr == nil && fdErr == nil {
@@ -214,7 +182,7 @@ func NewSoundStreaming(fpath string) (s *Sound, err error) {
 
 		s.Info.Size = dec.Length()
 		s.Player = Ctx.NewPlayer(dec)
-		s.Bytes = dec
+		s.Data = dec
 	}
 
 	return s, nil
@@ -254,9 +222,15 @@ func NewSoundMem(fpath string) (s *Sound, err error) {
 			return nil, err
 		}
 
-		s.Bytes = dec
-		s.Info.Size = dec.Length()
-		s.Player = Ctx.NewPlayer(dec)
+		finalBuf, err := ReadAllFromReader(dec, 0, uint64(dec.Length()))
+		if err != nil {
+			return nil, err
+		}
+
+		sb := &SoundBuffer{Data: finalBuf}
+		s.Data = sb
+		s.Player = Ctx.NewPlayer(sb)
+		s.Info.Size = int64(len(sb.Data))
 	}
 
 	return s, nil
@@ -270,5 +244,38 @@ func GetSoundFileType(fpath string) SoundType {
 		return SoundType_MP3
 	default:
 		return SoundType_Unknown
+	}
+}
+
+//ReadAllFromReader takes an io.Reader and reads until error or io.EOF.
+//
+//If io.EOF is reached then read bytes are returned with a nil error.
+//If the reader returns an error that's not io.EOF then everything read till that point is returned along with the error
+//
+//readingBufSize is the buffer used to read from reader.Read(). Bigger values might read more efficiently.
+//If readingBufSize<4096 then readingBufSize is set to 4096
+//
+//ouputBufSize is used to set the capacity of the final buffer to be returned. This can greatly improve performance
+//if you know the size of the output. It is allowed to have an outputBufSize that's smaller or larger than what the reader
+//ends up returning
+func ReadAllFromReader(reader io.Reader, readingBufSize, ouputBufSize uint64) ([]byte, error) {
+
+	if readingBufSize < 4096 {
+		readingBufSize = 4096
+	}
+
+	tempBuf := make([]byte, readingBufSize)
+	finalBuf := make([]byte, 0, ouputBufSize)
+	for {
+
+		readBytesCount, err := reader.Read(tempBuf)
+		finalBuf = append(finalBuf, tempBuf[:readBytesCount]...)
+
+		if err != nil {
+			if err == io.EOF {
+				return finalBuf, nil
+			}
+			return finalBuf, err
+		}
 	}
 }

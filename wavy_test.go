@@ -84,7 +84,8 @@ func TestSound(t *testing.T) {
 	}
 	s.PlaySync()
 
+	//Test repeat playing
 	s.Player.Reset()
-	s.Bytes.Seek(0, io.SeekStart)
+	s.Data.Seek(0, io.SeekStart)
 	s.PlaySync()
 }
