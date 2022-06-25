@@ -5,6 +5,7 @@ type SoundType int
 const (
 	SoundType_Unknown SoundType = iota
 	SoundType_MP3
+	SoundType_WAV
 )
 
 type SampleRate int

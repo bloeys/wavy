@@ -9,15 +9,15 @@ import (
 
 func TestSound(t *testing.T) {
 
-	fatihaFilepath := "./test_audio_files/Fatiha.mp3"
-	tadaFilepath := "./test_audio_files/tada.mp3"
-	const fatihaLenMS = 55484
-
 	err := wavy.Init(wavy.SampleRate_44100, wavy.SoundChannelCount_2, wavy.SoundBitDepth_2)
 	if err != nil {
 		t.Errorf("Failed to init wavy. Err: %s\n", err)
 		return
 	}
+
+	const fatihaFilepath = "./test_audio_files/Fatiha.mp3"
+	const tadaFilepath = "./test_audio_files/tada.mp3"
+	const fatihaLenMS = 55484
 
 	//Streaming
 	s, err := wavy.NewSoundStreaming(fatihaFilepath)
@@ -103,6 +103,15 @@ func TestSound(t *testing.T) {
 	s3 := wavy.ClipInMemSoundPercent(s2, 0, 0.25)
 	s3.LoopAsync(3)
 	s3.WaitLoop()
+
+	//Wav
+	const wavFPath = "./test_audio_files/camera.wav"
+	s, err = wavy.NewSoundMem(wavFPath)
+	if err != nil {
+		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", wavFPath, err)
+		return
+	}
+	s.PlaySync()
 }
 
 func TestByteCountFromPlayTime(t *testing.T) {

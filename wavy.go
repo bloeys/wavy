@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 	"path"
-	"strings"
 	"time"
 
+	"github.com/go-audio/wav"
 	"github.com/hajimehoshi/go-mp3"
 	"github.com/hajimehoshi/oto/v2"
 )
@@ -52,7 +52,7 @@ var (
 
 //Pre-defined errors
 var (
-	ErrunknownSoundType = errors.New("unknown sound type. Sound file extension must be one of: .mp3")
+	errUnknownSoundType = errors.New("unknown sound type. Sound file extension must be one of: .mp3")
 )
 
 //Init prepares the default audio device and does any required setup.
@@ -354,14 +354,9 @@ func ResumeAllSounds() {
 //Good for large sound files
 func NewSoundStreaming(fpath string) (s *Sound, err error) {
 
-	//Error checking filetype
-	soundType := SoundType_Unknown
-	if strings.HasSuffix(fpath, ".mp3") {
-		soundType = SoundType_MP3
-	}
-
+	soundType := GetSoundFileType(fpath)
 	if soundType == SoundType_Unknown {
-		return nil, ErrunknownSoundType
+		return nil, errUnknownSoundType
 	}
 
 	//We read file but don't close so the player can stream the file any time later
@@ -378,17 +373,9 @@ func NewSoundStreaming(fpath string) (s *Sound, err error) {
 		},
 	}
 
-	//Load file depending on type
-	if soundType == SoundType_MP3 {
-
-		dec, err := mp3.NewDecoder(file)
-		if err != nil {
-			return nil, err
-		}
-
-		s.Info.Size = dec.Length()
-		s.Player = Ctx.NewPlayer(dec)
-		s.Data = dec
+	err = soundFromReaderSeeker(file, s)
+	if err != nil {
+		return nil, getLoadingErr(fpath, err)
 	}
 
 	return s, nil
@@ -397,19 +384,14 @@ func NewSoundStreaming(fpath string) (s *Sound, err error) {
 //NewSoundMem loads the entire sound file into memory
 func NewSoundMem(fpath string) (s *Sound, err error) {
 
-	//Error checking filetype
-	soundType := SoundType_Unknown
-	if strings.HasSuffix(fpath, ".mp3") {
-		soundType = SoundType_MP3
-	}
-
+	soundType := GetSoundFileType(fpath)
 	if soundType == SoundType_Unknown {
-		return nil, ErrunknownSoundType
+		return nil, getLoadingErr(fpath, errUnknownSoundType)
 	}
 
 	fileBytes, err := os.ReadFile(fpath)
 	if err != nil {
-		return nil, err
+		return nil, getLoadingErr(fpath, err)
 	}
 
 	bytesReader := bytes.NewReader(fileBytes)
@@ -420,34 +402,69 @@ func NewSoundMem(fpath string) (s *Sound, err error) {
 		},
 	}
 
-	//Load file depending on type
-	if soundType == SoundType_MP3 {
+	err = soundFromReaderSeeker(bytesReader, s)
+	if err != nil {
+		return nil, getLoadingErr(fpath, err)
+	}
 
-		dec, err := mp3.NewDecoder(bytesReader)
+	return s, nil
+}
+
+func getLoadingErr(fpath string, err error) error {
+	return fmt.Errorf("failed to load '%s' with err '%s'", fpath, err.Error())
+}
+
+func soundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
+
+	if s.Info.Type == SoundType_MP3 {
+
+		dec, err := mp3.NewDecoder(r)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		finalBuf, err := ReadAllFromReader(dec, 0, uint64(dec.Length()))
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		sb := &SoundBuffer{Data: finalBuf}
 		s.Data = sb
 		s.Player = Ctx.NewPlayer(sb)
 		s.Info.Size = int64(len(sb.Data))
+		return nil
+
+	} else if s.Info.Type == SoundType_WAV {
+
+		wavDec := wav.NewDecoder(r)
+		err := wavDec.FwdToPCM()
+		if err != nil {
+			return err
+		}
+
+		finalBuf, err := ReadAllFromReader(wavDec.PCMChunk, 0, uint64(wavDec.PCMSize))
+		if err != nil {
+			return err
+		}
+
+		sb := &SoundBuffer{Data: finalBuf}
+		s.Data = sb
+		s.Player = Ctx.NewPlayer(sb)
+		s.Info.Size = int64(len(sb.Data))
+		return nil
 	}
 
-	return s, nil
+	panic("invalid sound type")
 }
 
 func GetSoundFileType(fpath string) SoundType {
 
 	ext := path.Ext(fpath)
 	switch ext {
-	case "mp3":
+	case ".mp3":
 		return SoundType_MP3
+	case ".wav", ".wave":
+		return SoundType_WAV
 	default:
 		return SoundType_Unknown
 	}
