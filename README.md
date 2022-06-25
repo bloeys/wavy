@@ -49,8 +49,9 @@ import (
 
 func main() {
 
-    //At the start if your program you should init wavy and tell it the sampling rate of your sounds (usually 44100),
-    //the number of channels (usually 2) and the number of bytes per channel (usually 2).
+    //At the start if your program you should init wavy and tell it the
+    //sampling rate of your sounds (usually 44100), the number of 
+    //channels (usually 2) and the number of bytes per channel (usually 2).
     //
     //These settings will be used for all sounds regardless of their actual settings
     err := wavy.Init(wavy.SampleRate_44100, wavy.SoundChannelCount_2, wavy.SoundBitDepth_2)
@@ -70,7 +71,8 @@ func main() {
     mySound.PlaySync()
 
     //Since the sound finished playing, lets reset to start
-    //by seeking to 0% then play again. Seeking to 0.5 then playing will start from the middle the sound.
+    //by seeking to 0% then play again. Seeking to 0.5 then playing
+    //will start from the middle the sound.
     mySound.SeekToPercent(0)
     mySound.PlayAsync()
 
@@ -131,7 +133,8 @@ mySound.PlaySync()
 //Set volume to 25%
 mySound.SetVolume(0.25)
 
-//Play the sound three times and wait for all 3 plays to finish. Negative numbers will play infinitely till paused
+//Play the sound three times and wait for all 3 plays to finish.
+//Negative numbers will play infinitely till paused
 mySound.LoopAsync(3)
 mySound.WaitLoop()
 
