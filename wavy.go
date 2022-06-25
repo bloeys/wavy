@@ -160,8 +160,8 @@ func (s *Sound) Close() error {
 //Since the sound data is not copied this function is very fast.
 func CopyInMemSound(s *Sound) *Sound {
 
-	if s.Info.Mode == SoundMode_Streaming {
-		panic("streaming sounds can not be copied. Please use NewSoundStreaming instead")
+	if s.Info.Mode != SoundMode_Memory {
+		panic("only in-memory sounds can not be copied. Please use NewSoundStreaming if you want to have multiple sound objects of a streaming sound")
 	}
 
 	d := s.Data.(*SoundBuffer).Copy()
