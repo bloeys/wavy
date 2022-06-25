@@ -89,4 +89,31 @@ func TestSound(t *testing.T) {
 
 	s.PlaySync()  //Already finished, should not play
 	s2.PlaySync() //Should play from beginning
+
+	//Test seek and play
+	s2.SeekToPercent(0.2)
+	s2.PlaySync()
+
+	s2.SeekToTime(400 * time.Millisecond)
+	s2.PlaySync()
+}
+
+func TestByteCountFromPlayTime(t *testing.T) {
+
+	got := wavy.ByteCountFromPlayTime(400 * time.Millisecond)
+	expected := int64(70560)
+	if got != expected {
+		t.Errorf("Expected '%d' but got '%d'\n", expected, got)
+		return
+	}
+}
+
+func TestPlayTimeFromByteCount(t *testing.T) {
+
+	got := wavy.PlayTimeFromByteCount(70560)
+	expected := 400 * time.Millisecond
+	if got != expected {
+		t.Errorf("Expected '%d' but got '%d'\n", expected, got)
+		return
+	}
 }

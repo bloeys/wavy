@@ -39,10 +39,14 @@ type Sound struct {
 
 //Those values are set after Init
 var (
-	Ctx          *oto.Context
+	Ctx *oto.Context
+
 	SamplingRate SampleRate
 	ChanCount    SoundChannelCount
 	BitDepth     SoundBitDepth
+
+	BytesPerSample int64
+	BytesPerSecond int64
 )
 
 //Pre-defined errors
@@ -65,6 +69,9 @@ func Init(sr SampleRate, chanCount SoundChannelCount, bitDepth SoundBitDepth) er
 	ChanCount = chanCount
 	BitDepth = bitDepth
 
+	BytesPerSample = int64(chanCount) * int64(bitDepth)
+	BytesPerSecond = BytesPerSample * int64(SamplingRate)
+
 	return nil
 }
 
@@ -84,14 +91,15 @@ func (s *Sound) PlaySync() {
 	for s.Player.IsPlaying() || s.Player.UnplayedBufferSize() > 0 {
 		time.Sleep(time.Millisecond)
 	}
+
+	//This is needed to ensure things work when we try to reuse (e.g. playSync->seek->play)
+	s.Player.Reset()
 }
 
 //TotalTime returns the time taken to play the entire sound.
 //Safe to use after close
 func (s *Sound) TotalTime() time.Duration {
-	//Number of bytes divided by sampling rate (which is bytes consumed per second), then divide by 4 because each sample is 4 bytes in go-mp3
-	lenInMS := float64(s.Info.Size) / float64(SamplingRate) / 4 * 1000
-	return time.Duration(lenInMS) * time.Millisecond
+	return PlayTimeFromByteCount(s.Info.Size)
 }
 
 //RemainingTime returns the time left in the clip, which is affected by pausing/resetting/seeking of the sound.
@@ -102,12 +110,10 @@ func (s *Sound) RemainingTime() time.Duration {
 		return 0
 	}
 
-	var currBytePos int64
-	currBytePos, _ = s.Data.Seek(0, io.SeekCurrent)
+	currBytePos, _ := s.Data.Seek(0, io.SeekCurrent)
 	currBytePos -= int64(s.Player.UnplayedBufferSize())
 
-	lenInMS := float64(s.Info.Size-currBytePos) / float64(SamplingRate) / 4 * 1000
-	return time.Duration(lenInMS) * time.Millisecond
+	return PlayTimeFromByteCount(s.Info.Size - currBytePos)
 }
 
 //SetVolume must be between 0 and 1 (both inclusive). Other values will panic.
@@ -119,6 +125,43 @@ func (s *Sound) SetVolume(newVol float64) {
 	}
 
 	s.Player.SetVolume(newVol)
+}
+
+func (s *Sound) Pause() {
+	s.Player.Pause()
+}
+
+func (s *Sound) IsPlaying() bool {
+	return s.Player.IsPlaying()
+}
+
+//SeekToPercent moves the current position of the sound to the given percentage of the total sound length.
+//For example, if a sound is 10s long and percent=0.5 then when the sound is played it will start from 5s.
+//
+//This can be used while the sound is playing.
+//
+//percent is clamped [0,1], so passing <0 is the same as zero, and >1 is the same as 1
+func (s *Sound) SeekToPercent(percent float64) {
+
+	if percent < 0 {
+		percent = 0
+	} else if percent > 1 {
+		percent = 1
+	}
+
+	s.Data.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
+}
+
+func (s *Sound) SeekToTime(t time.Duration) {
+
+	byteCount := ByteCountFromPlayTime(t)
+	if byteCount < 0 {
+		byteCount = 0
+	} else if byteCount > s.Info.Size {
+		byteCount = s.Info.Size
+	}
+
+	s.Data.Seek(byteCount, io.SeekStart)
 }
 
 func (s *Sound) IsClosed() bool {
@@ -307,4 +350,16 @@ func ReadAllFromReader(reader io.Reader, readingBufSize, ouputBufSize uint64) ([
 			return finalBuf, err
 		}
 	}
+}
+
+//PlayTimeFromByteCount returns the time taken to play this many bytes
+func PlayTimeFromByteCount(byteCount int64) time.Duration {
+	//timeToPlayInMs = timeToPlayInSec * 1000 = byteCount / bytesPerSecond * 1000
+	lenInMs := float64(byteCount) / float64(BytesPerSecond) * 1000
+	return time.Duration(lenInMs) * time.Millisecond
+}
+
+//PlayTimeFromByteCount returns how many bytes are needed to produce a sound that takes t time to play
+func ByteCountFromPlayTime(t time.Duration) int64 {
+	return t.Milliseconds() * BytesPerSecond / 1000
 }
