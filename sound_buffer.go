@@ -20,7 +20,7 @@ type SoundBuffer struct {
 	Pos int64
 }
 
-//Read only returns io.EOF when no more input is available
+//Read only returns io.EOF when bytesRead==0 and no more input is available
 func (sb *SoundBuffer) Read(outBuf []byte) (bytesRead int, err error) {
 
 	bytesRead = copy(outBuf, sb.Data[sb.Pos:])
@@ -58,10 +58,10 @@ func (sb *SoundBuffer) Seek(offset int64, whence int) (int64, error) {
 	return sb.Pos, nil
 }
 
-//Clone returns a new SoundBuffer that uses the same SoundBuffer.Data but with an independent ReadSeeker.
-//Allows you to have many readers all reading from different positions of the same buffer.
+//Clone returns a new SoundBuffer that uses the same `Data` but with an independent ReadSeeker.
+//This allows you to have many readers all reading from different positions of the same buffer.
 //
-//The new buffer starts reading from the start (Pos=0)
+//The new buffer will have its starting position set to io.SeekStart (`Pos=0`)
 func (sb *SoundBuffer) Clone() SoundBuffer {
 	return SoundBuffer{
 		Data: sb.Data,
