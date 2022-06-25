@@ -87,8 +87,11 @@ func TestSound(t *testing.T) {
 	s2 := wavy.CopyInMemSound(s)
 	s2.SetVolume(0.25)
 
-	s.PlaySync()  //Already finished, should not play
-	s2.PlaySync() //Should play from beginning
+	//Already finished, should not play
+	s.PlaySync()
+
+	//Should play from beginning
+	s2.PlaySync()
 
 	//Test seek and play
 	s2.SeekToPercent(0.2)

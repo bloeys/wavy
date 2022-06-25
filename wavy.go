@@ -25,6 +25,7 @@ type SoundInfo struct {
 
 type Sound struct {
 	Player oto.Player
+	Info   SoundInfo
 
 	//File is the file descriptor of the sound file being streamed.
 	//This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
@@ -34,7 +35,7 @@ type Sound struct {
 	//Becomes nil after close
 	Data io.ReadSeeker
 
-	Info SoundInfo
+	IsLooping bool
 }
 
 //Those values are set after Init
@@ -75,22 +76,89 @@ func Init(sr SampleRate, chanCount SoundChannelCount, bitDepth SoundBitDepth) er
 	return nil
 }
 
-//PlayAsync plays the sound in the background and returns
+//Wait blocks until sound finishes playing. If the sound is not playing Wait returns immediately.
+//In the worst case (Wait sleeping then sound immediately paused), Wait will block ~4% of the total play time.
+//In most other cases Wait should be accurate to ~1ms
+func (s *Sound) Wait() {
+
+	if !s.IsPlaying() {
+		return
+	}
+
+	//We wait the remaining time in 25 chunks so that if the sound was paused since wait was called we don't keep blocking
+	sleepTime := s.RemainingTime() / 25
+	for s.Player.IsPlaying() {
+		time.Sleep(sleepTime)
+	}
+
+	//If there is anything left it should be tiny so we check frequently
+	for s.Player.IsPlaying() {
+		time.Sleep(time.Millisecond)
+	}
+}
+
+//PlayAsync plays the sound in the background and returns.
 func (s *Sound) PlayAsync() {
 	s.Player.Play()
 }
 
-//PlaySync plays the sound (if its not already playing) and waits for it to finish before returning.
+//PlaySync calls PlayAsync() followed by Wait()
 func (s *Sound) PlaySync() {
+	s.PlayAsync()
+	s.Wait()
+}
 
-	if !s.Player.IsPlaying() {
-		s.Player.Play()
+//LoopAsync plays the sound 'timesToPlay' times.
+//If timesToPlay<0 then it is played indefinitely until paused
+//If timesToPlay==0 then the sound is not played.
+//If a sound is already playing then it will be paused then resumed in a looping manner
+func (s *Sound) LoopAsync(timesToPlay int) {
+
+	if timesToPlay == 0 {
+		return
 	}
 
-	time.Sleep(s.RemainingTime())
-	for s.Player.IsPlaying() || s.Player.UnplayedBufferSize() > 0 {
-		time.Sleep(time.Millisecond)
+	if s.IsPlaying() {
+		s.Pause()
+		s.Wait()
 	}
+
+	s.PlayAsync()
+	s.IsLooping = true
+	go func() {
+
+		if timesToPlay < 0 {
+
+			for {
+
+				s.Wait()
+
+				//Check is here because we don't want to seek back if we got paused
+				if !s.IsLooping {
+					break
+				}
+
+				s.SeekToPercent(0)
+				s.PlayAsync()
+			}
+
+		} else {
+
+			for timesToPlay > 0 {
+
+				timesToPlay--
+				s.Wait()
+
+				//Check is here because we don't want to seek back if we got paused
+				if !s.IsLooping {
+					break
+				}
+
+				s.SeekToPercent(0)
+				s.PlayAsync()
+			}
+		}
+	}()
 }
 
 //TotalTime returns the time taken to play the entire sound.
@@ -124,7 +192,13 @@ func (s *Sound) SetVolume(newVol float64) {
 	s.Player.SetVolume(newVol)
 }
 
+//Volume returns the current volume
+func (s *Sound) Volume() float64 {
+	return s.Player.Volume()
+}
+
 func (s *Sound) Pause() {
+	s.IsLooping = false
 	s.Player.Pause()
 }
 
@@ -219,6 +293,14 @@ func CopyInMemSound(s *Sound) *Sound {
 		Data:   d,
 		Info:   s.Info,
 	}
+}
+
+func PauseAllSounds() {
+	Ctx.Suspend()
+}
+
+func ResumeAllSounds() {
+	Ctx.Resume()
 }
 
 //NewSoundStreaming plays sound by streaming from a file, so no need to load the entire file into memory.
