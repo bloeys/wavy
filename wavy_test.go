@@ -8,12 +8,6 @@ import (
 	"github.com/bloeys/wavy"
 )
 
-const (
-	sampleRate      = 44100
-	bitDepthInBytes = 2
-	channelNum      = 2
-)
-
 func TestSound(t *testing.T) {
 
 	fatihaFilepath := "./test_audio_files/Fatiha.mp3"
