@@ -240,6 +240,12 @@ func (s *Sound) SeekToPercent(percent float64) {
 	s.Data.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
 }
 
+//SeekToTime moves the current position of the sound to the given duration.
+//For example if you use t=5*time.Second then play you will start from 5th second.
+//
+//This can be used while the sound is playing.
+//
+//t is clamped between [0, totalTime]
 func (s *Sound) SeekToTime(t time.Duration) {
 
 	if !s.IsPlaying() {
