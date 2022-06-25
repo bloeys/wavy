@@ -91,9 +91,6 @@ func (s *Sound) PlaySync() {
 	for s.Player.IsPlaying() || s.Player.UnplayedBufferSize() > 0 {
 		time.Sleep(time.Millisecond)
 	}
-
-	//This is needed to ensure things work when we try to reuse (e.g. playSync->seek->play)
-	s.Player.Reset()
 }
 
 //TotalTime returns the time taken to play the entire sound.
@@ -143,6 +140,10 @@ func (s *Sound) IsPlaying() bool {
 //percent is clamped [0,1], so passing <0 is the same as zero, and >1 is the same as 1
 func (s *Sound) SeekToPercent(percent float64) {
 
+	if !s.IsPlaying() {
+		s.Player.Reset()
+	}
+
 	if percent < 0 {
 		percent = 0
 	} else if percent > 1 {
@@ -153,6 +154,10 @@ func (s *Sound) SeekToPercent(percent float64) {
 }
 
 func (s *Sound) SeekToTime(t time.Duration) {
+
+	if !s.IsPlaying() {
+		s.Player.Reset()
+	}
 
 	byteCount := ByteCountFromPlayTime(t)
 	if byteCount < 0 {
