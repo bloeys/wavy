@@ -58,12 +58,12 @@ func (sb *SoundBuffer) Seek(offset int64, whence int) (int64, error) {
 	return sb.Pos, nil
 }
 
-//Clone returns a new SoundBuffer that uses the same `Data` but with an independent ReadSeeker.
+//Copy returns a new SoundBuffer that uses the same `Data` but with an independent ReadSeeker.
 //This allows you to have many readers all reading from different positions of the same buffer.
 //
 //The new buffer will have its starting position set to io.SeekStart (`Pos=0`)
-func (sb *SoundBuffer) Clone() SoundBuffer {
-	return SoundBuffer{
+func (sb *SoundBuffer) Copy() *SoundBuffer {
+	return &SoundBuffer{
 		Data: sb.Data,
 		Pos:  0,
 	}

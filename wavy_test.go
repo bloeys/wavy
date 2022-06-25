@@ -1,7 +1,6 @@
 package wavy_test
 
 import (
-	"io"
 	"testing"
 	"time"
 
@@ -85,7 +84,9 @@ func TestSound(t *testing.T) {
 	s.PlaySync()
 
 	//Test repeat playing
-	s.Player.Reset()
-	s.Data.Seek(0, io.SeekStart)
-	s.PlaySync()
+	s2 := wavy.CopyInMemSound(s)
+	s2.SetVolume(0.25)
+
+	s.PlaySync()  //Already finished, should not play
+	s2.PlaySync() //Should play from beginning
 }

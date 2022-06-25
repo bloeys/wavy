@@ -26,9 +26,9 @@ type SoundInfo struct {
 type Sound struct {
 	Player oto.Player
 
-	//FileDesc is the file descriptor of the sound file being streamed.
+	//File is the file descriptor of the sound file being streamed.
 	//This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
-	FileDesc *os.File
+	File *os.File
 
 	//Data is an io.ReadSeeker over an open file or over a buffer containing the uncompressed sound file.
 	//Becomes nil after close
@@ -110,6 +110,17 @@ func (s *Sound) RemainingTime() time.Duration {
 	return time.Duration(lenInMS) * time.Millisecond
 }
 
+//SetVolume must be between 0 and 1 (both inclusive). Other values will panic.
+//The default volume is 1.
+func (s *Sound) SetVolume(newVol float64) {
+
+	if newVol < 0 || newVol > 1 {
+		panic("sound volume can not be less than zero or bigger than one")
+	}
+
+	s.Player.SetVolume(newVol)
+}
+
 func (s *Sound) IsClosed() bool {
 	return s.Data == nil
 }
@@ -123,8 +134,8 @@ func (s *Sound) Close() error {
 	}
 
 	var fdErr error = nil
-	if s.FileDesc != nil {
-		fdErr = s.FileDesc.Close()
+	if s.File != nil {
+		fdErr = s.File.Close()
 	}
 
 	s.Data = nil
@@ -145,7 +156,27 @@ func (s *Sound) Close() error {
 	return fdErr
 }
 
+//CopyInMemSound returns a new sound object that has identitcal info but uses the same underlying data.
+//Since the sound data is not copied this function is very fast.
+//
+//The returned sound can be used independently of the original one (e.g. use it to play the same gunshot sound many times).
+func CopyInMemSound(s *Sound) *Sound {
+
+	if s.Info.Mode == SoundMode_Streaming {
+		panic("streaming sounds can not be copied. Please use NewSoundStreaming instead")
+	}
+
+	d := s.Data.(*SoundBuffer).Copy()
+	return &Sound{
+		Player: Ctx.NewPlayer(d),
+		File:   nil,
+		Data:   d,
+		Info:   s.Info,
+	}
+}
+
 //NewSoundStreaming plays sound by streaming from a file, so no need to load the entire file into memory.
+//Good for large sound files
 func NewSoundStreaming(fpath string) (s *Sound, err error) {
 
 	//Error checking filetype
@@ -165,7 +196,7 @@ func NewSoundStreaming(fpath string) (s *Sound, err error) {
 	}
 
 	s = &Sound{
-		FileDesc: file,
+		File: file,
 		Info: SoundInfo{
 			Type: soundType,
 			Mode: SoundMode_Streaming,
@@ -188,7 +219,7 @@ func NewSoundStreaming(fpath string) (s *Sound, err error) {
 	return s, nil
 }
 
-//NewSoundMem loads the entire sound file into memory and plays from that
+//NewSoundMem loads the entire sound file into memory
 func NewSoundMem(fpath string) (s *Sound, err error) {
 
 	//Error checking filetype
