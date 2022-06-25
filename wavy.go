@@ -156,10 +156,8 @@ func (s *Sound) Close() error {
 	return fdErr
 }
 
-//CopyInMemSound returns a new sound object that has identitcal info but uses the same underlying data.
+//CopyInMemSound returns a new sound object that has identitcal info and uses the same underlying data, but with independent play controls (e.g. one playing at the start while one is in the middle).
 //Since the sound data is not copied this function is very fast.
-//
-//The returned sound can be used independently of the original one (e.g. use it to play the same gunshot sound many times).
 func CopyInMemSound(s *Sound) *Sound {
 
 	if s.Info.Mode == SoundMode_Streaming {
