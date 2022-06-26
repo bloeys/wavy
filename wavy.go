@@ -561,11 +561,17 @@ func F32ToUnsignedPCM16(fs []float32) []byte {
 		//Remap [-1,1]->[-32768, 32767], then re-interprets the int16 as a uint16.
 		//With this, the negative values are mapped into the higher half of the uint16 range,
 		//while positive values remain unchanged
-		x16 := uint16(fs[i] * math.MaxInt16)
+		x := fs[i]
+		var u16 uint16
+		if x < 0 {
+			u16 = uint16(x * -math.MinInt16)
+		} else {
+			u16 = uint16(x * math.MaxInt16)
+		}
 
 		baseIndex := i * 2
-		outBuf[baseIndex] = byte(x16 >> 0)
-		outBuf[baseIndex+1] = byte(x16 >> 8)
+		outBuf[baseIndex] = byte(u16 >> 0)
+		outBuf[baseIndex+1] = byte(u16 >> 8)
 	}
 
 	return outBuf
