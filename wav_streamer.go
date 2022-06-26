@@ -36,13 +36,14 @@ func (ws *WavStreamer) Seek(offset int64, whence int) (int64, error) {
 	ws.mutex.Lock()
 	defer ws.mutex.Unlock()
 
+	//This will only seek the underlying file but not the actual decoder because it can't seek
 	n, err := ws.Dec.Seek(offset, whence)
 	if err != nil {
 		return n, err
 	}
 
-	//The underlying parser can not seek back, so in that case we have to rewind the decoder
-	//then seek forward.
+	//Since underlying decoder can't seek back, if the requested movement is back we have to rewind the decoder
+	//then seek forward to the requested position.
 	if n < ws.Pos {
 
 		err = ws.Dec.Rewind()
@@ -50,15 +51,14 @@ func (ws *WavStreamer) Seek(offset int64, whence int) (int64, error) {
 			return 0, err
 		}
 
-		//Anything before PCMStart is not valid sound, so the minimum seek back we allow is till PCMStart.
-		if n >= ws.PCMStart {
-
+		//Anything before PCMStart is not valid sound, so the minimum seek back we allow is PCMStart
+		if n < ws.PCMStart {
+			n = ws.PCMStart
+		} else {
 			n, err = ws.Dec.Seek(offset, whence)
 			if err != nil {
 				return n, err
 			}
-		} else {
-			n = ws.PCMStart
 		}
 	}
 
@@ -66,6 +66,7 @@ func (ws *WavStreamer) Seek(offset int64, whence int) (int64, error) {
 	return n, err
 }
 
+//Size returns number of bytes
 func (ws *WavStreamer) Size() int64 {
 	return ws.Dec.PCMLen()
 }
@@ -77,6 +78,7 @@ func NewWavStreamer(f *os.File, wavDec *wav.Decoder) (*WavStreamer, error) {
 		return nil, err
 	}
 
+	//The actual data starts somewhat within the file, not at 0
 	currPos, err := wavDec.Seek(0, 1)
 	if err != nil {
 		return nil, err

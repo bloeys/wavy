@@ -21,7 +21,6 @@ type SoundInfo struct {
 	Type SoundType
 	Mode SoundMode
 
-	//Size is the sound's size in bytes
 	Size int64
 }
 
@@ -415,15 +414,16 @@ func soundFromFile(f *os.File, s *Sound) error {
 		s.Info.Size = ws.Size()
 	} else if s.Info.Type == SoundType_OGG {
 
-		soundData, _, err := oggvorbis.ReadAll(f)
+		oggReader, err := oggvorbis.NewReader(f)
 		if err != nil {
 			return err
 		}
 
-		sb := &SoundBuffer{Data: F32ToUnsignedPCM16(soundData)}
-		s.Data = sb
-		s.Player = Ctx.NewPlayer(sb)
-		s.Info.Size = int64(len(sb.Data))
+		oggStreamer := NewOggStreamer(f, oggReader)
+
+		s.Data = oggStreamer
+		s.Player = Ctx.NewPlayer(oggStreamer)
+		s.Info.Size = oggStreamer.Size()
 	}
 
 	if s.Data == nil {
@@ -510,7 +510,7 @@ func decodeSoundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 			return err
 		}
 
-		sb := &SoundBuffer{Data: F32ToUnsignedPCM16(soundData)}
+		sb := &SoundBuffer{Data: F32ToUnsignedPCM16(soundData, nil)}
 		s.Data = sb
 		s.Player = Ctx.NewPlayer(sb)
 		s.Info.Size = int64(len(sb.Data))
@@ -599,9 +599,12 @@ func clamp01F64(x float64) float64 {
 
 //F32ToUnsignedPCM16 takes PCM data stored as float32 between [-1, 1]
 //and returns a byte array of uint16, where each two subsequent bytes represent one uint16.
-func F32ToUnsignedPCM16(fs []float32) []byte {
+func F32ToUnsignedPCM16(fs []float32, outBuf []byte) []byte {
 
-	outBuf := make([]byte, len(fs)*2)
+	if outBuf == nil {
+		outBuf = make([]byte, len(fs)*2)
+	}
+
 	for i := 0; i < len(fs); i++ {
 
 		//Remap [-1,1]->[-32768, 32767], then re-interprets the int16 as a uint16.

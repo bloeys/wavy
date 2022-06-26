@@ -7,19 +7,29 @@ import (
 	"github.com/bloeys/wavy"
 )
 
-func TestSound(t *testing.T) {
+func TestWavy(t *testing.T) {
+	t.Run("Init", TestInit)
+	t.Run("MP3", MP3Subtest)
+	t.Run("Wav", WavSubtest)
+	t.Run("Ogg", OggSubtest)
+}
+
+func TestInit(t *testing.T) {
 
 	err := wavy.Init(wavy.SampleRate_44100, wavy.SoundChannelCount_2, wavy.SoundBitDepth_2)
 	if err != nil {
 		t.Errorf("Failed to init wavy. Err: %s\n", err)
 		return
 	}
+}
+
+func MP3Subtest(t *testing.T) {
 
 	const fatihaFilepath = "./test_audio_files/Fatiha.mp3"
 	const tadaFilepath = "./test_audio_files/tada.mp3"
 	const fatihaLenMS = 55484
 
-	//Streaming
+	//Mp3 streaming
 	s, err := wavy.NewSoundStreaming(fatihaFilepath)
 	if err != nil {
 		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", fatihaFilepath, err)
@@ -47,7 +57,7 @@ func TestSound(t *testing.T) {
 		return
 	}
 
-	//In-Memory
+	//Mp3 in-memory
 	s, err = wavy.NewSoundMem(fatihaFilepath)
 	if err != nil {
 		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", fatihaFilepath, err)
@@ -75,7 +85,7 @@ func TestSound(t *testing.T) {
 		return
 	}
 
-	//Memory 'tada.mp3'
+	//'tada.mp3' memory
 	s, err = wavy.NewSoundMem(tadaFilepath)
 	if err != nil {
 		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", tadaFilepath, err)
@@ -103,34 +113,48 @@ func TestSound(t *testing.T) {
 	s3 := wavy.ClipInMemSoundPercent(s2, 0, 0.25)
 	s3.LoopAsync(3)
 	s3.WaitLoop()
+}
 
-	//Wav
+func WavSubtest(t *testing.T) {
+
 	const wavFPath = "./test_audio_files/camera.wav"
-	s, err = wavy.NewSoundMem(wavFPath)
+
+	s, err := wavy.NewSoundMem(wavFPath)
 	if err != nil {
 		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", wavFPath, err)
 		return
 	}
 	s.PlaySync()
 
-	//Streaming wav
+	//Wav streaming
 	s, err = wavy.NewSoundStreaming(wavFPath)
 	if err != nil {
-		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", tadaFilepath, err)
+		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", wavFPath, err)
 		return
 	}
-	s.SeekToPercent(0.0)
 	s.PlaySync()
-	s.SeekToPercent(0.0)
+	s.SeekToPercent(0.5)
 	s.PlaySync()
+}
 
-	//Ogg
+func OggSubtest(t *testing.T) {
+
 	const oggFPath = "./test_audio_files/camera.ogg"
-	s, err = wavy.NewSoundMem(oggFPath)
+	s, err := wavy.NewSoundMem(oggFPath)
 	if err != nil {
 		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", oggFPath, err)
 		return
 	}
+	s.PlaySync()
+
+	//Ogg streaming
+	s, err = wavy.NewSoundStreaming(oggFPath)
+	if err != nil {
+		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", oggFPath, err)
+		return
+	}
+	s.PlaySync()
+	s.SeekToPercent(.5)
 	s.PlaySync()
 }
 
