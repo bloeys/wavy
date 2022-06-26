@@ -112,6 +112,15 @@ func TestSound(t *testing.T) {
 		return
 	}
 	s.PlaySync()
+
+	//Ogg
+	const oggFPath = "./test_audio_files/camera.ogg"
+	s, err = wavy.NewSoundMem(oggFPath)
+	if err != nil {
+		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", oggFPath, err)
+		return
+	}
+	s.PlaySync()
 }
 
 func TestByteCountFromPlayTime(t *testing.T) {

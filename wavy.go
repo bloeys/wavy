@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-audio/wav"
 	"github.com/hajimehoshi/go-mp3"
 	"github.com/hajimehoshi/oto/v2"
+	"github.com/jfreymuth/oggvorbis"
 )
 
 //SoundInfo contains static info about a loaded sound file
@@ -438,8 +440,6 @@ func soundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 		s.Data = sb
 		s.Player = Ctx.NewPlayer(sb)
 		s.Info.Size = int64(len(sb.Data))
-		return nil
-
 	} else if s.Info.Type == SoundType_WAV {
 
 		wavDec := wav.NewDecoder(r)
@@ -457,10 +457,24 @@ func soundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 		s.Data = sb
 		s.Player = Ctx.NewPlayer(sb)
 		s.Info.Size = int64(len(sb.Data))
-		return nil
+	} else if s.Info.Type == SoundType_OGG {
+
+		soundData, _, err := oggvorbis.ReadAll(r)
+		if err != nil {
+			return err
+		}
+
+		sb := &SoundBuffer{Data: F32ToUnsignedPCM16(soundData)}
+		s.Data = sb
+		s.Player = Ctx.NewPlayer(sb)
+		s.Info.Size = int64(len(sb.Data))
 	}
 
-	panic("invalid sound type")
+	if s.Data == nil {
+		panic("invalid sound type. This is probably a bug!")
+	}
+
+	return nil
 }
 
 func GetSoundFileType(fpath string) SoundType {
@@ -471,6 +485,8 @@ func GetSoundFileType(fpath string) SoundType {
 		return SoundType_MP3
 	case ".wav", ".wave":
 		return SoundType_WAV
+	case ".ogg":
+		return SoundType_OGG
 	default:
 		return SoundType_Unknown
 	}
@@ -533,4 +549,24 @@ func clamp01F64(x float64) float64 {
 	}
 
 	return x
+}
+
+//F32ToUnsignedPCM16 takes PCM data stored as float32 between [-1, 1]
+//and returns a byte array of uint16, where each two subsequent bytes represent one uint16.
+func F32ToUnsignedPCM16(fs []float32) []byte {
+
+	outBuf := make([]byte, len(fs)*2)
+	for i := 0; i < len(fs); i++ {
+
+		//Remap [-1,1]->[-32768, 32767], then re-interprets the int16 as a uint16.
+		//With this, the negative values are mapped into the higher half of the uint16 range,
+		//while positive values remain unchanged
+		x16 := uint16(fs[i] * math.MaxInt16)
+
+		baseIndex := i * 2
+		outBuf[baseIndex] = byte(x16 >> 0)
+		outBuf[baseIndex+1] = byte(x16 >> 8)
+	}
+
+	return outBuf
 }
