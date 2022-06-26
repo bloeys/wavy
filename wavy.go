@@ -234,12 +234,14 @@ func (s *Sound) IsPlaying() bool {
 //percent is clamped [0,1], so passing <0 is the same as zero, and >1 is the same as 1
 func (s *Sound) SeekToPercent(percent float64) {
 
+	percent = clamp01F64(percent)
+	s.Data.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
+
+	//NOTE: Due to https://github.com/hajimehoshi/oto/issues/171, it is safer to seek before reset so we don't seek while a read is happening.
+	//This can still happen though if for example sound was paused midway then seeked, as read would be getting called
 	if !s.IsPlaying() {
 		s.Player.Reset()
 	}
-
-	percent = clamp01F64(percent)
-	s.Data.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
 }
 
 //SeekToTime moves the current position of the sound to the given duration.
@@ -250,10 +252,6 @@ func (s *Sound) SeekToPercent(percent float64) {
 //t is clamped between [0, totalTime]
 func (s *Sound) SeekToTime(t time.Duration) {
 
-	if !s.IsPlaying() {
-		s.Player.Reset()
-	}
-
 	byteCount := ByteCountFromPlayTime(t)
 	if byteCount < 0 {
 		byteCount = 0
@@ -262,6 +260,10 @@ func (s *Sound) SeekToTime(t time.Duration) {
 	}
 
 	s.Data.Seek(byteCount, io.SeekStart)
+
+	if !s.IsPlaying() {
+		s.Player.Reset()
+	}
 }
 
 func (s *Sound) IsClosed() bool {
@@ -381,12 +383,54 @@ func NewSoundStreaming(fpath string) (s *Sound, err error) {
 		},
 	}
 
-	err = soundFromReaderSeeker(file, s)
+	err = soundFromFile(file, s)
 	if err != nil {
 		return nil, getLoadingErr(fpath, err)
 	}
 
 	return s, nil
+}
+
+func soundFromFile(f *os.File, s *Sound) error {
+
+	if s.Info.Type == SoundType_MP3 {
+
+		dec, err := mp3.NewDecoder(f)
+		if err != nil {
+			return err
+		}
+
+		s.Data = dec
+		s.Player = Ctx.NewPlayer(dec)
+		s.Info.Size = dec.Length()
+	} else if s.Info.Type == SoundType_WAV {
+
+		ws, err := NewWavStreamer(f, wav.NewDecoder(f))
+		if err != nil {
+			return err
+		}
+
+		s.Data = ws
+		s.Player = Ctx.NewPlayer(ws)
+		s.Info.Size = ws.Size()
+	} else if s.Info.Type == SoundType_OGG {
+
+		soundData, _, err := oggvorbis.ReadAll(f)
+		if err != nil {
+			return err
+		}
+
+		sb := &SoundBuffer{Data: F32ToUnsignedPCM16(soundData)}
+		s.Data = sb
+		s.Player = Ctx.NewPlayer(sb)
+		s.Info.Size = int64(len(sb.Data))
+	}
+
+	if s.Data == nil {
+		panic("invalid sound type. This is probably a bug!")
+	}
+
+	return nil
 }
 
 //NewSoundMem loads the entire sound file into memory
@@ -410,7 +454,7 @@ func NewSoundMem(fpath string) (s *Sound, err error) {
 		},
 	}
 
-	err = soundFromReaderSeeker(bytesReader, s)
+	err = decodeSoundFromReaderSeeker(bytesReader, s)
 	if err != nil {
 		return nil, getLoadingErr(fpath, err)
 	}
@@ -422,7 +466,9 @@ func getLoadingErr(fpath string, err error) error {
 	return fmt.Errorf("failed to load '%s' with err '%s'", fpath, err.Error())
 }
 
-func soundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
+//decodeSoundFromReaderSeeker reads and decodes till EOF, and places the final
+//PCM16 data in a buffer, thus producing an in-memory sound
+func decodeSoundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 
 	if s.Info.Type == SoundType_MP3 {
 

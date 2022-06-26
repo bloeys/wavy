@@ -113,6 +113,17 @@ func TestSound(t *testing.T) {
 	}
 	s.PlaySync()
 
+	//Streaming wav
+	s, err = wavy.NewSoundStreaming(wavFPath)
+	if err != nil {
+		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", tadaFilepath, err)
+		return
+	}
+	s.SeekToPercent(0.0)
+	s.PlaySync()
+	s.SeekToPercent(0.0)
+	s.PlaySync()
+
 	//Ogg
 	const oggFPath = "./test_audio_files/camera.ogg"
 	s, err = wavy.NewSoundMem(oggFPath)
