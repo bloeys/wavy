@@ -29,8 +29,9 @@ If you are using iOS or Linux please check [this](https://github.com/hajimehoshi
 
 ## Supported audio formats
 
-- MP3
-- Wav/Wave
+- MP3 (`.mp3`)
+- Wav (`.wav`/`.wave`)
+- OGG (`.ogg`)
 
 ## Usage
 
