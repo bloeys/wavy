@@ -8,13 +8,13 @@ import (
 )
 
 func TestWavy(t *testing.T) {
-	t.Run("Init", TestInit)
+	t.Run("Init", InitSubtest)
 	t.Run("MP3", MP3Subtest)
 	t.Run("Wav", WavSubtest)
 	t.Run("Ogg", OggSubtest)
 }
 
-func TestInit(t *testing.T) {
+func InitSubtest(t *testing.T) {
 
 	err := wavy.Init(wavy.SampleRate_44100, wavy.SoundChannelCount_2, wavy.SoundBitDepth_2)
 	if err != nil {
