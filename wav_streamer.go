@@ -3,7 +3,6 @@ package wavy
 import (
 	"io"
 	"os"
-	"sync"
 
 	"github.com/go-audio/wav"
 )
@@ -15,26 +14,17 @@ type WavStreamer struct {
 	Dec      *wav.Decoder
 	Pos      int64
 	PCMStart int64
-
-	//TODO: This is currently needed because of https://github.com/hajimehoshi/oto/issues/171
-	//We should be able to delete once its resolved
-	mutex sync.Mutex
 }
 
 func (ws *WavStreamer) Read(outBuf []byte) (bytesRead int, err error) {
 
-	ws.mutex.Lock()
 	bytesRead, err = ws.Dec.PCMChunk.Read(outBuf)
 	ws.Pos += int64(bytesRead)
-	ws.mutex.Unlock()
 
 	return bytesRead, err
 }
 
 func (ws *WavStreamer) Seek(offset int64, whence int) (int64, error) {
-
-	ws.mutex.Lock()
-	defer ws.mutex.Unlock()
 
 	//This will only seek the underlying file but not the actual decoder because it can't seek
 	n, err := ws.Dec.Seek(offset, whence)
@@ -89,6 +79,5 @@ func NewWavStreamer(f *os.File, wavDec *wav.Decoder) (*WavStreamer, error) {
 		Dec:      wavDec,
 		Pos:      currPos,
 		PCMStart: currPos,
-		mutex:    sync.Mutex{},
 	}, nil
 }

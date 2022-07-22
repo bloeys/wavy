@@ -25,8 +25,9 @@ type SoundInfo struct {
 }
 
 type Sound struct {
-	Player oto.Player
-	Info   SoundInfo
+	Player       oto.Player
+	PlayerSeeker io.Seeker
+	Info         SoundInfo
 
 	//File is the file descriptor of the sound file being streamed.
 	//This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
@@ -234,13 +235,7 @@ func (s *Sound) IsPlaying() bool {
 func (s *Sound) SeekToPercent(percent float64) {
 
 	percent = clamp01F64(percent)
-	s.Data.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
-
-	//NOTE: Due to https://github.com/hajimehoshi/oto/issues/171, it is safer to seek before reset so we don't seek while a read is happening.
-	//This can still happen though if for example sound was paused midway then seeked, as read would be getting called
-	if !s.IsPlaying() {
-		s.Player.Reset()
-	}
+	s.PlayerSeeker.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
 }
 
 //SeekToTime moves the current position of the sound to the given duration.
@@ -258,11 +253,7 @@ func (s *Sound) SeekToTime(t time.Duration) {
 		byteCount = s.Info.Size
 	}
 
-	s.Data.Seek(byteCount, io.SeekStart)
-
-	if !s.IsPlaying() {
-		s.Player.Reset()
-	}
+	s.PlayerSeeker.Seek(byteCount, io.SeekStart)
 }
 
 func (s *Sound) IsClosed() bool {
@@ -316,10 +307,11 @@ func CopyInMemSound(s *Sound) *Sound {
 	p.SetVolume(s.Volume())
 
 	return &Sound{
-		Player: p,
-		File:   nil,
-		Data:   sb,
-		Info:   s.Info,
+		Player:       p,
+		PlayerSeeker: p.(io.Seeker),
+		File:         nil,
+		Data:         sb,
+		Info:         s.Info,
 	}
 }
 
@@ -344,10 +336,11 @@ func ClipInMemSoundPercent(s *Sound, fromPercent, toPercent float64) *Sound {
 	p.SetVolume(s.Volume())
 
 	return &Sound{
-		Player: p,
-		File:   nil,
-		Data:   sb,
-		Info:   s.Info,
+		Player:       p,
+		PlayerSeeker: p.(io.Seeker),
+		File:         nil,
+		Data:         sb,
+		Info:         s.Info,
 	}
 }
 
@@ -401,6 +394,7 @@ func soundFromFile(f *os.File, s *Sound) error {
 
 		s.Data = dec
 		s.Player = Ctx.NewPlayer(dec)
+		s.PlayerSeeker = s.Player.(io.Seeker)
 		s.Info.Size = dec.Length()
 	} else if s.Info.Type == SoundType_WAV {
 
@@ -411,6 +405,7 @@ func soundFromFile(f *os.File, s *Sound) error {
 
 		s.Data = ws
 		s.Player = Ctx.NewPlayer(ws)
+		s.PlayerSeeker = s.Player.(io.Seeker)
 		s.Info.Size = ws.Size()
 	} else if s.Info.Type == SoundType_OGG {
 
@@ -423,6 +418,7 @@ func soundFromFile(f *os.File, s *Sound) error {
 
 		s.Data = oggStreamer
 		s.Player = Ctx.NewPlayer(oggStreamer)
+		s.PlayerSeeker = s.Player.(io.Seeker)
 		s.Info.Size = oggStreamer.Size()
 	}
 
@@ -485,6 +481,7 @@ func decodeSoundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 		sb := &SoundBuffer{Data: finalBuf}
 		s.Data = sb
 		s.Player = Ctx.NewPlayer(sb)
+		s.PlayerSeeker = s.Player.(io.Seeker)
 		s.Info.Size = int64(len(sb.Data))
 	} else if s.Info.Type == SoundType_WAV {
 
@@ -502,6 +499,7 @@ func decodeSoundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 		sb := &SoundBuffer{Data: finalBuf}
 		s.Data = sb
 		s.Player = Ctx.NewPlayer(sb)
+		s.PlayerSeeker = s.Player.(io.Seeker)
 		s.Info.Size = int64(len(sb.Data))
 	} else if s.Info.Type == SoundType_OGG {
 
@@ -513,6 +511,7 @@ func decodeSoundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 		sb := &SoundBuffer{Data: F32ToUnsignedPCM16(soundData, nil)}
 		s.Data = sb
 		s.Player = Ctx.NewPlayer(sb)
+		s.PlayerSeeker = s.Player.(io.Seeker)
 		s.Info.Size = int64(len(sb.Data))
 	}
 
