@@ -16,7 +16,7 @@ import (
 	"github.com/jfreymuth/oggvorbis"
 )
 
-//SoundInfo contains static info about a loaded sound file
+// SoundInfo contains static info about a loaded sound file
 type SoundInfo struct {
 	Type SoundType
 	Mode SoundMode
@@ -29,18 +29,18 @@ type Sound struct {
 	PlayerSeeker io.Seeker
 	Info         SoundInfo
 
-	//File is the file descriptor of the sound file being streamed.
-	//This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
+	// File is the file descriptor of the sound file being streamed.
+	// This is only set if sound is streamed, and is kept to ensure GC doesn't hit it
 	File *os.File
 
-	//Data is an io.ReadSeeker over an open file or over a buffer containing the uncompressed sound file.
-	//Becomes nil after close
+	// Data is an io.ReadSeeker over an open file or over a buffer containing the uncompressed sound file.
+	// Becomes nil after close
 	Data io.ReadSeeker
 
 	IsLooping bool
 }
 
-//Those values are set after Init
+// Those values are set after Init
 var (
 	Ctx *oto.Context
 
@@ -52,13 +52,13 @@ var (
 	BytesPerSecond int64
 )
 
-//Pre-defined errors
+// Pre-defined errors
 var (
 	errUnknownSoundType = errors.New("unknown sound type. Sound file extension must be one of: .mp3")
 )
 
-//Init prepares the default audio device and does any required setup.
-//It must be called before loading any sounds
+// Init prepares the default audio device and does any required setup.
+// It must be called before loading any sounds
 func Init(sr SampleRate, chanCount SoundChannelCount, bitDepth SoundBitDepth) error {
 
 	otoCtx, readyChan, err := oto.NewContext(int(sr), int(chanCount), int(bitDepth))
@@ -78,30 +78,30 @@ func Init(sr SampleRate, chanCount SoundChannelCount, bitDepth SoundBitDepth) er
 	return nil
 }
 
-//Wait blocks until sound finishes playing. If the sound is not playing Wait returns immediately.
-//In the worst case (Wait sleeping then sound immediately paused), Wait will block ~4% of the total play time.
-//In most other cases Wait should be accurate to ~1ms.
+// Wait blocks until sound finishes playing. If the sound is not playing Wait returns immediately.
+// In the worst case (Wait sleeping then sound immediately paused), Wait will block ~4% of the total play time.
+// In most other cases Wait should be accurate to ~1ms.
 //
-//If you want to wait for all loops to finish then use WaitLoop
+// If you want to wait for all loops to finish then use WaitLoop
 func (s *Sound) Wait() {
 
 	if !s.IsPlaying() {
 		return
 	}
 
-	//We wait the remaining time in 25 chunks so that if the sound was paused since wait was called we don't keep blocking
+	// We wait the remaining time in 25 chunks so that if the sound was paused since wait was called we don't keep blocking
 	sleepTime := s.RemainingTime() / 25
 	for s.Player.IsPlaying() {
 		time.Sleep(sleepTime)
 	}
 
-	//If there is anything left it should be tiny so we check frequently
+	// If there is anything left it should be tiny so we check frequently
 	for s.Player.IsPlaying() {
 		time.Sleep(time.Millisecond)
 	}
 }
 
-//WaitLoop waits until the sound is no longer looping
+// WaitLoop waits until the sound is no longer looping
 func (s *Sound) WaitLoop() {
 
 	for s.IsLooping {
@@ -109,21 +109,21 @@ func (s *Sound) WaitLoop() {
 	}
 }
 
-//PlayAsync plays the sound in the background and returns.
+// PlayAsync plays the sound in the background and returns.
 func (s *Sound) PlayAsync() {
 	s.Player.Play()
 }
 
-//PlaySync calls PlayAsync() followed by Wait()
+// PlaySync calls PlayAsync() followed by Wait()
 func (s *Sound) PlaySync() {
 	s.PlayAsync()
 	s.Wait()
 }
 
-//LoopAsync plays the sound 'timesToPlay' times.
-//If timesToPlay<0 then it is played indefinitely until paused
-//If timesToPlay==0 then the sound is not played.
-//If a sound is already playing then it will be paused then resumed in a looping manner
+// LoopAsync plays the sound 'timesToPlay' times.
+// If timesToPlay<0 then it is played indefinitely until paused
+// If timesToPlay==0 then the sound is not played.
+// If a sound is already playing then it will be paused then resumed in a looping manner
 func (s *Sound) LoopAsync(timesToPlay int) {
 
 	if timesToPlay == 0 {
@@ -151,7 +151,7 @@ func (s *Sound) LoopAsync(timesToPlay int) {
 
 				s.Wait()
 
-				//Check is here because we don't want to seek back if we got paused
+				// Check is here because we don't want to seek back if we got paused
 				if !s.IsLooping {
 					break
 				}
@@ -167,7 +167,7 @@ func (s *Sound) LoopAsync(timesToPlay int) {
 				timesToPlay--
 				s.Wait()
 
-				//Check is here because we don't want to seek back if we got paused
+				// Check is here because we don't want to seek back if we got paused
 				if !s.IsLooping {
 					break
 				}
@@ -181,14 +181,14 @@ func (s *Sound) LoopAsync(timesToPlay int) {
 	}()
 }
 
-//TotalTime returns the time taken to play the entire sound.
-//Safe to use after close
+// TotalTime returns the time taken to play the entire sound.
+// Safe to use after close
 func (s *Sound) TotalTime() time.Duration {
 	return PlayTimeFromByteCount(s.Info.Size)
 }
 
-//RemainingTime returns the time left in the clip, which is affected by pausing/resetting/seeking of the sound.
-//Returns zero after close
+// RemainingTime returns the time left in the clip, which is affected by pausing/resetting/seeking of the sound.
+// Returns zero after close
 func (s *Sound) RemainingTime() time.Duration {
 
 	if s.IsClosed() {
@@ -201,8 +201,8 @@ func (s *Sound) RemainingTime() time.Duration {
 	return PlayTimeFromByteCount(s.Info.Size - currBytePos)
 }
 
-//SetVolume must be between 0 and 1 (both inclusive). Other values will panic.
-//The default volume is 1.
+// SetVolume must be between 0 and 1 (both inclusive). Other values will panic.
+// The default volume is 1.
 func (s *Sound) SetVolume(newVol float64) {
 
 	if newVol < 0 || newVol > 1 {
@@ -212,7 +212,7 @@ func (s *Sound) SetVolume(newVol float64) {
 	s.Player.SetVolume(newVol)
 }
 
-//Volume returns the current volume
+// Volume returns the current volume
 func (s *Sound) Volume() float64 {
 	return s.Player.Volume()
 }
@@ -226,24 +226,24 @@ func (s *Sound) IsPlaying() bool {
 	return s.Player.IsPlaying()
 }
 
-//SeekToPercent moves the current position of the sound to the given percentage of the total sound length.
-//For example, if a sound is 10s long and percent=0.5 then when the sound is played it will start from 5s.
+// SeekToPercent moves the current position of the sound to the given percentage of the total sound length.
+// For example, if a sound is 10s long and percent=0.5 then when the sound is played it will start from 5s.
 //
-//This can be used while the sound is playing.
+// This can be used while the sound is playing.
 //
-//percent is clamped [0,1], so passing <0 is the same as zero, and >1 is the same as 1
+// percent is clamped [0,1], so passing <0 is the same as zero, and >1 is the same as 1
 func (s *Sound) SeekToPercent(percent float64) {
 
 	percent = clamp01F64(percent)
 	s.PlayerSeeker.Seek(int64(float64(s.Info.Size)*percent), io.SeekStart)
 }
 
-//SeekToTime moves the current position of the sound to the given duration.
-//For example if you use t=5*time.Second then play you will start from 5th second.
+// SeekToTime moves the current position of the sound to the given duration.
+// For example if you use t=5*time.Second then play you will start from 5th second.
 //
-//This can be used while the sound is playing.
+// This can be used while the sound is playing.
 //
-//t is clamped between [0, totalTime]
+// t is clamped between [0, totalTime]
 func (s *Sound) SeekToTime(t time.Duration) {
 
 	byteCount := ByteCountFromPlayTime(t)
@@ -260,8 +260,8 @@ func (s *Sound) IsClosed() bool {
 	return s.Data == nil
 }
 
-//Close will clean underlying resources, and the 'Ctx' and 'Bytes' fields will be made nil.
-//Repeated calls are no-ops
+// Close will clean underlying resources, and the 'Ctx' and 'Bytes' fields will be made nil.
+// Repeated calls are no-ops
 func (s *Sound) Close() error {
 
 	if s.IsClosed() {
@@ -291,10 +291,10 @@ func (s *Sound) Close() error {
 	return fdErr
 }
 
-//CopyInMemSound returns a new sound object that has identitcal info and uses the same underlying data, but with independent play controls (e.g. one playing at the start while one is in the middle).
-//Since the sound data is not copied this function is very fast.
+// CopyInMemSound returns a new sound object that has identitcal info and uses the same underlying data, but with independent play controls (e.g. one playing at the start while one is in the middle).
+// Since the sound data is not copied this function is very fast.
 //
-//Panics if the sound is not in-memory
+// Panics if the sound is not in-memory
 func CopyInMemSound(s *Sound) *Sound {
 
 	if s.Info.Mode != SoundMode_Memory {
@@ -315,8 +315,8 @@ func CopyInMemSound(s *Sound) *Sound {
 	}
 }
 
-//ClipInMemSoundPercent is like CopyInMemSound but produces a sound that plays only between from and to.
-//fromPercent and toPercent must be between 0 and 1
+// ClipInMemSoundPercent is like CopyInMemSound but produces a sound that plays only between from and to.
+// fromPercent and toPercent must be between 0 and 1
 func ClipInMemSoundPercent(s *Sound, fromPercent, toPercent float64) *Sound {
 
 	if s.Info.Mode != SoundMode_Memory {
@@ -352,8 +352,8 @@ func ResumeAllSounds() {
 	Ctx.Resume()
 }
 
-//NewSoundStreaming plays sound by streaming from a file, so no need to load the entire file into memory.
-//Good for large sound files
+// NewSoundStreaming plays sound by streaming from a file, so no need to load the entire file into memory.
+// Good for large sound files
 func NewSoundStreaming(fpath string) (s *Sound, err error) {
 
 	soundType := GetSoundFileType(fpath)
@@ -361,7 +361,7 @@ func NewSoundStreaming(fpath string) (s *Sound, err error) {
 		return nil, errUnknownSoundType
 	}
 
-	//We read file but don't close so the player can stream the file any time later
+	// We read file but don't close so the player can stream the file any time later
 	file, err := os.Open(fpath)
 	if err != nil {
 		return nil, err
@@ -429,7 +429,7 @@ func soundFromFile(f *os.File, s *Sound) error {
 	return nil
 }
 
-//NewSoundMem loads the entire sound file into memory
+// NewSoundMem loads the entire sound file into memory
 func NewSoundMem(fpath string) (s *Sound, err error) {
 
 	soundType := GetSoundFileType(fpath)
@@ -462,8 +462,8 @@ func getLoadingErr(fpath string, err error) error {
 	return fmt.Errorf("failed to load '%s' with err '%s'", fpath, err.Error())
 }
 
-//decodeSoundFromReaderSeeker reads and decodes till EOF, and places the final
-//PCM16 data in a buffer, thus producing an in-memory sound
+// decodeSoundFromReaderSeeker reads and decodes till EOF, and places the final
+// PCM16 data in a buffer, thus producing an in-memory sound
 func decodeSoundFromReaderSeeker(r io.ReadSeeker, s *Sound) error {
 
 	if s.Info.Type == SoundType_MP3 {
@@ -537,17 +537,17 @@ func GetSoundFileType(fpath string) SoundType {
 	}
 }
 
-//ReadAllFromReader takes an io.Reader and reads until error or io.EOF.
+// ReadAllFromReader takes an io.Reader and reads until error or io.EOF.
 //
-//If io.EOF is reached then read bytes are returned with a nil error.
-//If the reader returns an error that's not io.EOF then everything read till that point is returned along with the error
+// If io.EOF is reached then read bytes are returned with a nil error.
+// If the reader returns an error that's not io.EOF then everything read till that point is returned along with the error
 //
-//readingBufSize is the buffer used to read from reader.Read(). Bigger values might read more efficiently.
-//If readingBufSize<4096 then readingBufSize is set to 4096
+// readingBufSize is the buffer used to read from reader.Read(). Bigger values might read more efficiently.
+// If readingBufSize<4096 then readingBufSize is set to 4096
 //
-//ouputBufSize is used to set the capacity of the final buffer to be returned. This can greatly improve performance
-//if you know the size of the output. It is allowed to have an outputBufSize that's smaller or larger than what the reader
-//ends up returning
+// ouputBufSize is used to set the capacity of the final buffer to be returned. This can greatly improve performance
+// if you know the size of the output. It is allowed to have an outputBufSize that's smaller or larger than what the reader
+// ends up returning
 func ReadAllFromReader(reader io.Reader, readingBufSize, ouputBufSize uint64) ([]byte, error) {
 
 	if readingBufSize < 4096 {
@@ -570,19 +570,19 @@ func ReadAllFromReader(reader io.Reader, readingBufSize, ouputBufSize uint64) ([
 	}
 }
 
-//PlayTimeFromByteCount returns the time taken to play this many bytes
+// PlayTimeFromByteCount returns the time taken to play this many bytes
 func PlayTimeFromByteCount(byteCount int64) time.Duration {
-	//timeToPlayInMs = timeToPlayInSec * 1000 = byteCount / bytesPerSecond * 1000
+	// timeToPlayInMs = timeToPlayInSec * 1000 = byteCount / bytesPerSecond * 1000
 	lenInMs := float64(byteCount) / float64(BytesPerSecond) * 1000
 	return time.Duration(lenInMs) * time.Millisecond
 }
 
-//PlayTimeFromByteCount returns how many bytes are needed to produce a sound that takes t time to play
+// PlayTimeFromByteCount returns how many bytes are needed to produce a sound that takes t time to play
 func ByteCountFromPlayTime(t time.Duration) int64 {
 	return t.Milliseconds() * BytesPerSecond / 1000
 }
 
-//clampF64 [min,max]
+// clampF64 [min,max]
 func clamp01F64(x float64) float64 {
 
 	if x < 0 {
@@ -596,8 +596,8 @@ func clamp01F64(x float64) float64 {
 	return x
 }
 
-//F32ToUnsignedPCM16 takes PCM data stored as float32 between [-1, 1]
-//and returns a byte array of uint16, where each two subsequent bytes represent one uint16.
+// F32ToUnsignedPCM16 takes PCM data stored as float32 between [-1, 1]
+// and returns a byte array of uint16, where each two subsequent bytes represent one uint16.
 func F32ToUnsignedPCM16(fs []float32, outBuf []byte) []byte {
 
 	if outBuf == nil {
@@ -606,9 +606,9 @@ func F32ToUnsignedPCM16(fs []float32, outBuf []byte) []byte {
 
 	for i := 0; i < len(fs); i++ {
 
-		//Remap [-1,1]->[-32768, 32767], then re-interprets the int16 as a uint16.
-		//With this, the negative values are mapped into the higher half of the uint16 range,
-		//while positive values remain unchanged
+		// Remap [-1,1]->[-32768, 32767], then re-interprets the int16 as a uint16.
+		// With this, the negative values are mapped into the higher half of the uint16 range,
+		// while positive values remain unchanged
 		x := fs[i]
 		var u16 uint16
 		if x < 0 {

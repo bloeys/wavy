@@ -29,7 +29,7 @@ func MP3Subtest(t *testing.T) {
 	const tadaFilepath = "./test_audio_files/tada.mp3"
 	const fatihaLenMS = 55484
 
-	//Mp3 streaming
+	// Mp3 streaming
 	s, err := wavy.NewSoundStreaming(fatihaFilepath)
 	if err != nil {
 		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", fatihaFilepath, err)
@@ -57,7 +57,7 @@ func MP3Subtest(t *testing.T) {
 		return
 	}
 
-	//Mp3 in-memory
+	// Mp3 in-memory
 	s, err = wavy.NewSoundMem(fatihaFilepath)
 	if err != nil {
 		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", fatihaFilepath, err)
@@ -85,7 +85,7 @@ func MP3Subtest(t *testing.T) {
 		return
 	}
 
-	//'tada.mp3' memory
+	// 'tada.mp3' memory
 	s, err = wavy.NewSoundMem(tadaFilepath)
 	if err != nil {
 		t.Errorf("Failed to load memory sound with path '%s'. Err: %s\n", tadaFilepath, err)
@@ -93,17 +93,17 @@ func MP3Subtest(t *testing.T) {
 	}
 	s.PlaySync()
 
-	//Test repeat playing
+	// Test repeat playing
 	s2 := wavy.CopyInMemSound(s)
 	s2.SetVolume(0.25)
 
-	//Already finished, should not play
+	// Already finished, should not play
 	s.PlaySync()
 
-	//Should play from beginning
+	// Should play from beginning
 	s2.PlaySync()
 
-	//Test seek and play
+	// Test seek and play
 	s2.SeekToPercent(0.2)
 	s2.PlaySync()
 
@@ -126,7 +126,7 @@ func WavSubtest(t *testing.T) {
 	}
 	s.PlaySync()
 
-	//Wav streaming
+	// Wav streaming
 	s, err = wavy.NewSoundStreaming(wavFPath)
 	if err != nil {
 		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", wavFPath, err)
@@ -147,7 +147,7 @@ func OggSubtest(t *testing.T) {
 	}
 	s.PlaySync()
 
-	//Ogg streaming
+	// Ogg streaming
 	s, err = wavy.NewSoundStreaming(oggFPath)
 	if err != nil {
 		t.Errorf("Failed to load streaming sound with path '%s'. Err: %s\n", oggFPath, err)

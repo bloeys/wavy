@@ -25,7 +25,7 @@ func (ws *OggStreamer) Read(outBuf []byte) (floatsRead int, err error) {
 
 func (ws *OggStreamer) Seek(offset int64, whence int) (int64, error) {
 
-	//This is because ogg expects position in samples not bytes
+	// This is because ogg expects position in samples not bytes
 	offset /= BytesPerSample
 
 	switch whence {
@@ -49,7 +49,7 @@ func (ws *OggStreamer) Seek(offset int64, whence int) (int64, error) {
 	return ws.Dec.Position() * BytesPerSample, nil
 }
 
-//Size returns number of bytes
+// Size returns number of bytes
 func (ws *OggStreamer) Size() int64 {
 	return ws.Dec.Length() * BytesPerSample
 }

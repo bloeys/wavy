@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-//Pre-defined errors
+// Pre-defined errors
 var (
 	ErrInvalidWhence   = errors.New("invalid whence value. Must be: io.SeekStart, io.SeekCurrent, or io.SeekEnd")
 	ErrNegativeSeekPos = errors.New("negative seeker position")
@@ -16,11 +16,11 @@ var _ io.ReadSeeker = &SoundBuffer{}
 type SoundBuffer struct {
 	Data []byte
 
-	//Pos is the starting position of the next read
+	// Pos is the starting position of the next read
 	Pos int64
 }
 
-//Read only returns io.EOF when bytesRead==0 and no more input is available
+// Read only returns io.EOF when bytesRead==0 and no more input is available
 func (sb *SoundBuffer) Read(outBuf []byte) (bytesRead int, err error) {
 
 	bytesRead = copy(outBuf, sb.Data[sb.Pos:])
@@ -32,10 +32,10 @@ func (sb *SoundBuffer) Read(outBuf []byte) (bytesRead int, err error) {
 	return bytesRead, nil
 }
 
-//Seek returns the new position.
-//An error is only returned if the whence is invalid or if the resulting position is negative.
+// Seek returns the new position.
+// An error is only returned if the whence is invalid or if the resulting position is negative.
 //
-//If the resulting position is >=len(SoundBuffer.Data) then future Read() calls will return io.EOF
+// If the resulting position is >=len(SoundBuffer.Data) then future Read() calls will return io.EOF
 func (sb *SoundBuffer) Seek(offset int64, whence int) (int64, error) {
 
 	newPos := sb.Pos
@@ -58,10 +58,10 @@ func (sb *SoundBuffer) Seek(offset int64, whence int) (int64, error) {
 	return sb.Pos, nil
 }
 
-//Copy returns a new SoundBuffer that uses the same `Data` but with an independent ReadSeeker.
-//This allows you to have many readers all reading from different positions of the same buffer.
+// Copy returns a new SoundBuffer that uses the same `Data` but with an independent ReadSeeker.
+// This allows you to have many readers all reading from different positions of the same buffer.
 //
-//The new buffer will have its starting position set to io.SeekStart (`Pos=0`)
+// The new buffer will have its starting position set to io.SeekStart (`Pos=0`)
 func (sb *SoundBuffer) Copy() *SoundBuffer {
 	return &SoundBuffer{
 		Data: sb.Data,
